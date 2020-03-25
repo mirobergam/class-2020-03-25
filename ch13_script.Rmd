@@ -14,7 +14,7 @@ load("nes.rda")
 
 x <- nes %>% 
   as_tibble() %>% 
-  select(year, dvote, partyid7, real_ideo, race_adj, 
+  select(year, rvote, dvote, partyid7, real_ideo, race_adj, 
          age_discrete, educ1, female, income) %>% 
   drop_na() %>% 
   mutate(gender = as.factor(ifelse(female == 1, "female", "non-female"))) %>% 
@@ -30,25 +30,93 @@ x <- nes %>%
 
 **Prompt:** We are still using data from the National Election Survey. We have added some new variables: `rvote` and `dvote`. Poke and around. Find things that are suspicious about this data.
 
+```{r  Q1}
+glimpse(x)
+```
+
+There's  nothing wrong
+
 # Scene 2
 
 **Prompt:** Let's try to understand things which are associated with `dvote`, which is (claiming to have cast) a vote for the Democratic candidate for President. Estimate two models (`z_old` and `z_stan`) which uses `gender` to explain `dvote`. `z_old` uses the standard `glm()` command. `z_stan()` uses `stan_glm()`. Interpret the results from both printing the simple model objects and for running `summary()` on them.
 
+```{r  Q2}
+
+z_old <- glm(data = x, dvote ~ gender, family = binomial)
+z_stan <- stan_glm(data = x, dvote ~ gender, refresh = FALSE, family = binomial)
+
+z_old
+z_stan
+
+```
+
 # Scene 3
 
-**Prompt:** For females, the intercept is -0.1. What does that mean? For men, it is -0.1 + (-0.2) = -0.3. What is the substance meaning of -0.1 and -0.3? 
+**Prompt:** For females, the intercept is 0.5. What does that mean? For men, it is 0.5 + (-0.1) = 0.4. What is the substance meaning of 0.5 and 0.4? 
+
+Based on this model, females are (slightly) more likely to vote democratically.
+
 
 # Scene 4
 
 **Prompt:** Let's look more closely at the coefficent on `non-female`. Interpret what it means. Can you put its magnitude onto the same scale as the outcome? That is, what I really want to know iw how much more (less?) likely men are to vote for the Democrat than women.  (Don't forget the divide-by-4 rule.) Now, just using simple dplyr commands, confirm that this is, in fact, the case in the raw data.
 
+-0.2/4 = -0.05 = Provides you with what the linear effect would be. 
+Men are predicted to vote democrat approximately 5% less than women. 
+The utility of the logistic regression is because it fits the data more accurately.
+
+```{r}
+
+# Transposing between logistical outcome and the actual magnitude of change
+1/(1+exp(0.14))
+
+# Rule of four
+-.22/4
+
+# Obtain the value in normal terms by taking the inverse logit of the probability of women voting for the Democratic party
+# Puts them on the probability scale
+plogis(-0.1)
+
+#same but for men
+plogis(-0.3)
+
+x %>%
+  group_by(gender) %>%
+  summarize(dvotes = sum(dvote), all = n()) %>%
+  mutate(per = dvotes/all)
+
+## in my head there
+
+
+```
+
 # Scene 5
 
 **Prompt:** We have a model. Cool! Assume that we have new "data", a tibble with one row and one variable, `gender`, which is "female". What is the probability that this new person for vote Democratic?
 
+```{r}
+
+five <- tibble(gender = "female")
+
+predict(z_old, five)
+plogis(-0.143)
+
+#predict(z_old, five, type = "response")
+
+# It is just what wee had above for all females ~ 46%
+
+```
+
 # Scene 6
 
 **Prompt:** So, with rstanarm models, at least, `predict()` doesn't (ever?) work. Instead, we need to use `posterior_linpred()`. But it sure is confusing! Continuing with our simple case of one new female observation, use `posterior_linpred()`, understand its outputs, and the provide a graphical display of those outputs. (Hint: Check the class of the output. It isn't a tibble!)
+
+```{r}
+y <- posterior_linpred(z_stan, newdata = five)
+
+hist(y)
+```
+
 
 # Scene 7
 
